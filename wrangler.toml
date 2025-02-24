@@ -2,6 +2,10 @@ name = "mechachang"
 main = "src/index.ts"
 compatibility_date = "2024-02-24"
 
+# CPU時間の制限を60秒に設定
+[limits]
+cpu_ms = 60000
+
 [vars]
 # 本番環境の環境変数はwrangler secretsで設定
 # SLACK_SIGNING_SECRET

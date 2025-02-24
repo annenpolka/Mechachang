@@ -64,16 +64,9 @@ app.post('/slack/events', async (c) => {
     const { GEMINI_API_KEY } = c.env;
 
     try {
-      const response = await processGeminiRequest(
-        {
-          text: body.event.text
-        },
-        GEMINI_API_KEY
-      );
-
-      // 進捗通知を送信
-      const sendProgressMessage = async (text: string) => {
-        await fetch('https://slack.com/api/chat.postMessage', {
+      // 即時応答を返す
+      c.executionCtx.waitUntil(
+        fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -81,23 +74,36 @@ app.post('/slack/events', async (c) => {
           },
           body: JSON.stringify({
             channel: body.event.channel,
-            text: text
+            text: 'メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...'
           })
-        });
-      };
+        })
+      );
 
-      // 初期メッセージを送信
-      await sendProgressMessage('メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...');
+      const response = await processGeminiRequest(
+        {
+          text: body.event.text
+        },
+        GEMINI_API_KEY
+      );
 
       // エラーがない場合のみ最終的な応答を送信
       if (!response.error) {
         const formattedResponse = formatSlackResponse(response.text);
-        await sendProgressMessage(formattedResponse);
+        c.executionCtx.waitUntil(fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${c.env.SLACK_BOT_TOKEN}`
+          },
+          body: JSON.stringify({
+            channel: body.event.channel,
+            text: formattedResponse
+          })
+        }));
       }
     } catch (error) {
       console.error('Error in events endpoint:', error);
-    }
-  }
+    }  }
 
   return c.json({ ok: true });
 });
