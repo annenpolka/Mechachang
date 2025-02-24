@@ -105,7 +105,10 @@ const handleError = async (
 const notifyProgress = async (request: GeminiRequest, phase: ProcessingPhase, status: 'start' | 'complete' | 'error', details?: string) => {
   if (request.response_url) {
     try {
-      await sendSlackProcessingStatus(request.response_url, phase, status, details);
+      const options = {
+        replace_original: status !== 'start' // 最初のメッセージは新規送信、それ以降は更新
+      };
+      await sendSlackProcessingStatus(request.response_url, phase, status, details, options);
     } catch (error) {
       console.error('Failed to send progress notification:', error);
     }

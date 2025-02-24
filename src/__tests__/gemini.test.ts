@@ -97,7 +97,8 @@ describe('Gemini Service', () => {
         request.response_url,
         'initialization',
         'start',
-        expect.stringContaining('メッセージを受け取りました')
+        'メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...',
+        { replace_original: false }
       );
     });
 
