@@ -1,0 +1,39 @@
+{
+  "name": "mechachang",
+  "version": "1.0.0",
+  "description": "Slack bot for Gemini 2.0 Flash API using Cloudflare Workers",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "tsc",
+    "format": "prettier --write ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/annenpolka/Mechachang.git"
+  },
+  "keywords": [
+    "slack",
+    "bot",
+    "gemini",
+    "cloudflare-workers",
+    "hono"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/annenpolka/Mechachang/issues"
+  },
+  "homepage": "https://github.com/annenpolka/Mechachang#readme",
+  "dependencies": {
+    "@google/generative-ai": "^0.22.0",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.1"
+  }
+}
