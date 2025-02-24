@@ -20,15 +20,15 @@ Cloudflare WorkersとHonoを使用して、SlackからGemini 2.0 Flash APIを呼
 - [x] 開発環境の構築
 
 ### 2. Slack App設定
-- [ ] Slack Appの作成
-- [ ] ボットユーザーの追加
-- [ ] スラッシュコマンドの設定（`/gemini`）
-- [ ] 必要な権限の設定
-- [ ] Signing Secretの取得
+- [x] Slack Appの作成
+- [x] ボットユーザーの追加
+- [x] スラッシュコマンドの設定（`/gemini`）
+- [x] 必要な権限の設定
+- [x] Signing Secretの取得
 
 ### 3. Gemini API設定
-- [ ] Google Cloud Projectの設定
-- [ ] Gemini APIキーの取得
+- [x] Google Cloud Projectの設定
+- [x] Gemini APIキーの取得
 - [x] APIクライアントの実装
   - Structured Outputs用のインターフェース定義
   - 入力分析ロジックの実装
@@ -63,8 +63,8 @@ Cloudflare WorkersとHonoを使用して、SlackからGemini 2.0 Flash APIを呼
 - [x] その他必要な設定値
 
 ### 7. デプロイと動作確認
-- [ ] Cloudflare Workersへのデプロイ
-- [ ] Slackアプリのエンドポイント更新
+- [x] Cloudflare Workersへのデプロイ
+- [x] Slackアプリのエンドポイント更新
 - [x] 基本的な機能テスト
 - [x] エラーケースのテスト
 
@@ -109,6 +109,14 @@ interface InputAnalysis {
 - 入力分析エラー
 - Structured Outputsのスキーマ検証
 - エラーメッセージのフォーマット
+
+実装済みのエラーハンドリング：
+- リクエストの署名検証エラー
+- タイムスタンプの検証（5分以上古いリクエストを拒否）
+- Gemini APIのレスポンスパースエラー
+- Slack APIのレスポンスエラー
+- バックグラウンド処理エラー
+- 開発環境での署名検証スキップ機能
 
 ## セキュリティ考慮事項
 - Slack Signing Secretによるリクエスト検証
