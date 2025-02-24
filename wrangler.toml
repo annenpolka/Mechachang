@@ -1,0 +1,17 @@
+name = "mechachang"
+main = "src/index.ts"
+compatibility_date = "2024-02-24"
+
+[vars]
+# 本番環境の環境変数はwrangler secretsで設定
+# SLACK_SIGNING_SECRET
+# SLACK_BOT_TOKEN
+# GEMINI_API_KEY
+
+# 開発環境用の環境変数
+[vars.dev]
+# ローカル開発時は.dev.varsファイルで環境変数を設定
+
+# トリガーの設定
+[triggers]
+crons = []
