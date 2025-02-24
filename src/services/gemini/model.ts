@@ -35,7 +35,7 @@ export const initializeModel = (apiKey: string): GenerativeModel => {
   if (!modelInstance) {
     const genAI = new GoogleGenerativeAI(apiKey);
     modelInstance = genAI.getGenerativeModel({
-      model: 'gemini-pro',
+      model: 'gemini-2.0-flash',
       safetySettings,
     });
   }
