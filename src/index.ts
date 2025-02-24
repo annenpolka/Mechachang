@@ -66,15 +66,13 @@ app.post('/slack/events', async (c) => {
     try {
       const response = await processGeminiRequest(
         {
-          text: body.event.text,
-          response_url: `https://slack.com/api/chat.postMessage`,
+          text: body.event.text
         },
         GEMINI_API_KEY
       );
 
-      // エラーがない場合のみ最終的な応答を送信
-      if (!response.error) {
-        const formattedResponse = formatSlackResponse(response.text);
+      // 進捗通知を送信
+      const sendProgressMessage = async (text: string) => {
         await fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
           headers: {
@@ -83,9 +81,18 @@ app.post('/slack/events', async (c) => {
           },
           body: JSON.stringify({
             channel: body.event.channel,
-            text: formattedResponse
+            text: text
           })
         });
+      };
+
+      // 初期メッセージを送信
+      await sendProgressMessage('メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...');
+
+      // エラーがない場合のみ最終的な応答を送信
+      if (!response.error) {
+        const formattedResponse = formatSlackResponse(response.text);
+        await sendProgressMessage(formattedResponse);
       }
     } catch (error) {
       console.error('Error in events endpoint:', error);
