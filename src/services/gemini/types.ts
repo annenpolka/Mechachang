@@ -57,6 +57,7 @@ export interface ProcessingError {
   message: string;
   details?: unknown;
   context?: Record<string, unknown>;
+  userGuidance?: string; // ユーザーへのガイダンスメッセージ
 }
 
 // Geminiリクエスト

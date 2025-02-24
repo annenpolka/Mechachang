@@ -64,32 +64,39 @@ app.post('/slack/events', async (c) => {
     const { GEMINI_API_KEY } = c.env;
 
     try {
-      // 即時応答を返す
-      c.executionCtx.waitUntil(
-        fetch('https://slack.com/api/chat.postMessage', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${c.env.SLACK_BOT_TOKEN}`
-          },
-          body: JSON.stringify({
-            channel: body.event.channel,
-            text: 'メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...'
-          })
+
+      // 進捗メッセージを送信
+      await fetch('https://slack.com/api/chat.postMessage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${c.env.SLACK_BOT_TOKEN}`
+        },
+        body: JSON.stringify({
+          channel: body.event.channel,
+          text: '🔄 メッセージを処理中です...'
         })
-      );
+      });
+
+      console.log('Processing message:', body.event.text);
 
       const response = await processGeminiRequest(
         {
-          text: body.event.text
+          text: body.event.text,
+          response_url: undefined // Slackイベントの場合はundefined
         },
         GEMINI_API_KEY
       );
 
-      // エラーがない場合のみ最終的な応答を送信
-      if (!response.error) {
-        const formattedResponse = formatSlackResponse(response.text);
-        c.executionCtx.waitUntil(fetch('https://slack.com/api/chat.postMessage', {
+      // レスポンスの送信（エラーの場合もメッセージを送信）
+      const formattedResponse = formatSlackResponse(response.error ?
+        `エラーが発生しました: ${response.error.message}` :
+        response.text
+      );
+
+      try {
+        console.log('Sending message to Slack API...');
+        const slackResponse = await fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -99,11 +106,36 @@ app.post('/slack/events', async (c) => {
             channel: body.event.channel,
             text: formattedResponse
           })
-        }));
+        });
+
+        const responseData = await slackResponse.json();
+        const slackApiResponse = responseData as { ok: boolean };
+        console.log('Slack API response:', responseData);
+
+        if (!slackResponse.ok || !slackApiResponse.ok) {
+          throw new Error(`Slack API error: ${slackResponse.status} ${slackResponse.statusText}`);
+        }
+      } catch (slackError) {
+        console.error('Error sending message to Slack:', slackError);
+        // エラーメッセージを送信（非同期エラーを無視）
+        fetch('https://slack.com/api/chat.postMessage', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${c.env.SLACK_BOT_TOKEN}`
+            },
+            body: JSON.stringify({
+              channel: body.event.channel,
+              text: '❌ メッセージの送信中にエラーが発生しました。しばらく待ってから再度お試しください。'
+            })
+          }).catch(err => {
+            console.error('Failed to send error message:', err);
+        });
       }
     } catch (error) {
       console.error('Error in events endpoint:', error);
-    }  }
+      console.error('Full error details:', error);
+    } }
 
   return c.json({ ok: true });
 });

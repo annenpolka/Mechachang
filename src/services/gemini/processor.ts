@@ -81,20 +81,39 @@ const handleError = async (
   context?: Record<string, unknown>
 ): Promise<ProcessingError> => {
   // エラーの種類に応じた詳細なメッセージを生成
-  let errorMessage = error instanceof Error ? error.message : '不明なエラー';
+  let errorMessage = '予期せぬエラーが発生しました';
   let errorDetails = error instanceof Error ? error.stack : undefined;
+  let userGuidance = '';
 
   if (error instanceof TypeError) {
-    errorMessage = '入力データの形式が正しくありません';
+    errorMessage = '入力データの形式に問題があります';
+    userGuidance = '正しい形式でデータを入力してください';
   } else if (error instanceof RangeError) {
-    errorMessage = '入力データが処理可能な範囲を超えています';
+    errorMessage = '入力データが制限を超えています';
+    userGuidance = '入力テキストを短くするか、複数のリクエストに分けてお試しください';
+  } else if (error instanceof Error) {
+    if (error.message.includes('APIキー')) {
+      errorMessage = 'API認証エラー';
+      userGuidance = '有効なAPIキーを使用しているか確認してください';
+    } else if (error.message.includes('応答が正しい形式ではありません')) {
+      errorMessage = 'レスポンスの解析に失敗しました';
+      userGuidance = 'しばらく待ってから再度お試しください';
+    } else if (error.message.includes('APIからの応答がありません')) {
+      errorMessage = 'APIサーバーからの応答がありません';
+      userGuidance = 'ネットワーク接続を確認し、しばらく待ってから再度お試しください';
+    } else {
+      errorMessage = error.message;
+    }
+  } else {
+    userGuidance = 'しばらく待ってから再度お試しください';
   }
 
   const processingError: ProcessingError = {
     phase,
     message: errorMessage,
     details: errorDetails,
-    context
+    context,
+    userGuidance
   };
 
   console.error('Detailed Gemini API error:', processingError);
@@ -223,7 +242,7 @@ export const processGeminiRequest = async (
 
     const processingError = await handleError(error, currentPhase, request, errorContext);
     return {
-      text: `エラーが発生しました: ${processingError.message}`,
+      text: `エラーが発生しました: ${processingError.message}\n${processingError.userGuidance ? `ご案内: ${processingError.userGuidance}` : ''}`,
       error: processingError,
       processingPhase: currentPhase
     };
