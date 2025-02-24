@@ -9,15 +9,28 @@ import { getSchemaForMode } from './schemas';
 const getAnalysisPrompt = (text: string): string => {
   return `
     以下のテキストを分析し、最適なモードと処理方法を判断してください。
+
+    分析の観点：
+    1. 入力の種類（質問、コマンド、説明など）
+    2. 技術的な複雑さ
+    3. 必要な前提知識
+    4. 期待される出力形式
+    5. 実行時の制約条件
+
     応答は必ず以下のJSON形式で返してください：
     {
       "mode": "general" | "code" | "data" | "creative",
       "context": {
         "type": "string",
         "keywords": ["string"],
-        "complexity": number
+        "complexity": number,
+        "inputType": "question" | "command" | "description" | "other",
+        "technicalLevel": "basic" | "intermediate" | "advanced",
+        "expectedOutput": "text" | "code" | "analysis" | "mixed",
+        "constraints": ["string"]
       }
     }
+    注意：各フィールドは慎重に判断し、できるだけ詳細な情報を含めてください。
 
     入力テキスト：
     ${text}

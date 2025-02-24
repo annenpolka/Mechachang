@@ -38,9 +38,14 @@ const buildPrompt = (text: string, analysis: InputAnalysis): string => {
           properties: {
             type: { type: 'string' },
             keywords: { type: 'array', items: { type: 'string' } },
-            complexity: { type: 'number' }
+            complexity: { type: 'number' },
+            inputType: { type: 'string', enum: ['question', 'command', 'description', 'other'] },
+            technicalLevel: { type: 'string', enum: ['basic', 'intermediate', 'advanced'] },
+            expectedOutput: { type: 'string', enum: ['text', 'code', 'analysis', 'mixed'] },
+            constraints: { type: 'array', items: { type: 'string' } }
           },
-          required: ['type', 'keywords', 'complexity']
+          required: ['type', 'keywords', 'complexity', 'inputType', 'technicalLevel',
+                    'expectedOutput', 'constraints']
         },
         ...analysis.structuredOutputSchema.properties
       },
@@ -72,12 +77,24 @@ const extractJsonFromResponse = (text: string): string => {
 const handleError = async (
   error: unknown,
   phase: ProcessingPhase,
-  request: GeminiRequest
+  request: GeminiRequest,
+  context?: Record<string, unknown>
 ): Promise<ProcessingError> => {
+  // エラーの種類に応じた詳細なメッセージを生成
+  let errorMessage = error instanceof Error ? error.message : '不明なエラー';
+  let errorDetails = error instanceof Error ? error.stack : undefined;
+
+  if (error instanceof TypeError) {
+    errorMessage = '入力データの形式が正しくありません';
+  } else if (error instanceof RangeError) {
+    errorMessage = '入力データが処理可能な範囲を超えています';
+  }
+
   const processingError: ProcessingError = {
     phase,
-    message: error instanceof Error ? error.message : '不明なエラー',
-    details: error instanceof Error ? error.stack : undefined
+    message: errorMessage,
+    details: errorDetails,
+    context
   };
 
   console.error('Detailed Gemini API error:', processingError);
@@ -147,8 +164,44 @@ export const processGeminiRequest = async (
     // 入力の分析
     currentPhase = 'input_analysis';
     await notifyProgress(request, currentPhase, 'start', '入力を分析中');
+
     const model = getModelInstance();
-    const analysis = await analyzeInput(model, request.text);
+
+    // 初期分析
+    const initialAnalysis = await analyzeInput(model, request.text);
+    await notifyProgress(request, currentPhase, 'complete', '入力の分析が完了');
+
+    // 詳細分析のプロンプト生成
+    const detailPrompt = `
+      先ほどの分析結果を基に、より詳細な分析を行います。
+
+      初期分析結果：
+      ${JSON.stringify(initialAnalysis, null, 2)}
+
+      以下の観点から、より具体的な処理方法を提案してください：
+
+      1. 入力の意図と目的の明確化
+      2. 必要なリソースと依存関係の特定
+      3. 想定される処理ステップの詳細化
+      4. 潜在的な課題やエッジケースの検討
+      5. 最適な応答形式の決定
+
+      応答は必ず上記の初期分析と同じJSON形式で返してください。
+      各フィールドはより具体的な情報で更新してください。
+    `;
+
+    // 詳細分析の実行
+    const detailResult = await model.generateContent([{ text: detailPrompt }]);
+    const detailResponse = await detailResult.response;
+    const detailText = await detailResponse.text();
+
+    // 詳細分析結果の解析
+    const detailJson = extractJsonFromResponse(detailText);
+    const detailAnalysis = JSON.parse(detailJson);
+
+    // 初期分析と詳細分析を統合
+    const analysis = { ...initialAnalysis, ...detailAnalysis };
+
     await notifyProgress(request, currentPhase, 'complete', '入力の分析が完了');
 
     // プロンプトの生成とコンテンツの生成
@@ -179,6 +232,14 @@ export const processGeminiRequest = async (
         .replace(/"\s*"/, '",\n"') // 文字列と次のキーの間
         .replace(/]\s*"/, '],\n"'); // 配列の終わりと次のキーの間
       structuredOutput = JSON.parse(fixedJsonText);
+
+      // 応答の品質チェック
+      if (!structuredOutput || typeof structuredOutput !== 'object') {
+        throw new Error('応答が正しい形式ではありません');
+      }
+      if (Object.keys(structuredOutput).length === 0) {
+        throw new Error('応答が空です');
+      }
 
       // modeプロパティが存在することを確認
       if (!structuredOutput.mode) {
@@ -211,7 +272,14 @@ export const processGeminiRequest = async (
       processingPhase: currentPhase
     };
   } catch (error) {
-    const processingError = await handleError(error, currentPhase, request);
+    // エラー発生時のコンテキスト情報を収集
+    const errorContext = {
+      phase: currentPhase,
+      inputLength: request.text.length,
+      timestamp: new Date().toISOString()
+    };
+
+    const processingError = await handleError(error, currentPhase, request, errorContext);
     return {
       text: `エラーが発生しました: ${processingError.message}`,
       error: processingError,

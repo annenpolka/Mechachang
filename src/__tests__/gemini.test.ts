@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sendSlackProcessingStatus } from '../utils/slack';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   initializeModel,
   getModelInstance,
@@ -23,7 +24,13 @@ vi.mock('@google/generative-ai', () => {
               context: {
                 type: 'text',
                 keywords: ['test'],
-                complexity: 1
+                complexity: 1,
+                inputType: 'question',
+                technicalLevel: 'basic',
+                expectedOutput: 'text',
+                constraints: [
+                  'no special requirements'
+                ]
               },
               summary: 'テスト',
               keyPoints: ['ポイント1']
@@ -82,6 +89,14 @@ describe('Gemini Service', () => {
       expect(result).toHaveProperty('mode');
       expect(result).toHaveProperty('context');
       expect(result).toHaveProperty('structuredOutputSchema');
+
+      // 新しいフィールドの検証
+      expect(result.context).toHaveProperty('inputType');
+      expect(result.context).toHaveProperty('technicalLevel');
+      expect(result.context).toHaveProperty('expectedOutput');
+      expect(result.context).toHaveProperty('constraints');
+      expect(Array.isArray(result.context.constraints)).toBe(true);
+      expect(result.context.constraints.length).toBeGreaterThan(0);
     });
   });
 
@@ -107,6 +122,26 @@ describe('Gemini Service', () => {
       const response = await processGeminiRequest(request, API_KEY);
       expect(response).toHaveProperty('text');
       expect(response).toHaveProperty('structuredOutput');
+    });
+
+    it('2段階分析プロセスを実行する', async () => {
+      const request = { text: 'テストリクエスト' };
+      const response = await processGeminiRequest(request, API_KEY);
+
+      // 初期分析と詳細分析の結果が統合されていることを確認
+      expect(response.structuredOutput).toHaveProperty('context');
+      const context = response.structuredOutput?.context;
+
+      // 基本フィールド
+      expect(context).toHaveProperty('type');
+      expect(context).toHaveProperty('keywords');
+      expect(context).toHaveProperty('complexity');
+
+      // 詳細フィールド
+      expect(context).toHaveProperty('inputType');
+      expect(context).toHaveProperty('technicalLevel');
+      expect(context).toHaveProperty('expectedOutput');
+      expect(context).toHaveProperty('constraints');
     });
 
     it('APIキーが無効な場合にエラーを投げる', async () => {
