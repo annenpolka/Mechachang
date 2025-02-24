@@ -5,7 +5,7 @@ import type {
   ProcessingPhase,
   ProcessingError
 } from './types';
-import { sendSlackError, sendSlackProcessingStatus } from '../../utils/slack';
+import { sendSlackError } from '../../utils/slack';
 import { initializeModel, getModelInstance } from './model';
 import { analyzeInput } from './analyzer';
 import { formatResponse } from './formatter';
@@ -119,19 +119,6 @@ const handleError = async (
   return processingError;
 };
 
-const notifyProgress = async (request: GeminiRequest, phase: ProcessingPhase, status: 'start' | 'complete' | 'error', details?: string) => {
-  if (request.response_url) {
-    try {
-      const options = {
-        replace_original: status !== 'start' // 最初のメッセージは新規送信、それ以降は更新
-      };
-      await sendSlackProcessingStatus(request.response_url, phase, status, details, options);
-    } catch (error) {
-      console.error('Failed to send progress notification:', error);
-    }
-  }
-};
-
 /**
  * Geminiリクエストを処理します
  * @param request リクエストオブジェクト
@@ -144,9 +131,6 @@ export const processGeminiRequest = async (
 ): Promise<GeminiResponse> => {
   let currentPhase: ProcessingPhase = 'initialization';
 
-    // メッセージ受信の通知
-    await notifyProgress(request, currentPhase, 'start', 'メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...');
-
   try {
     // APIキーのバリデーション
     if (!apiKey) {
@@ -157,56 +141,20 @@ export const processGeminiRequest = async (
     }
 
     // モデルの初期化
-    await notifyProgress(request, currentPhase, 'start', 'モデルを初期化中');
+    console.log('Initializing model...');
     initializeModel(apiKey);
-    await notifyProgress(request, currentPhase, 'complete', 'モデルの初期化が完了');
 
     // 入力の分析
     currentPhase = 'input_analysis';
-    await notifyProgress(request, currentPhase, 'start', '入力を分析中');
+    console.log('Analyzing input...');
 
     const model = getModelInstance();
 
-    // 初期分析
-    const initialAnalysis = await analyzeInput(model, request.text);
-    await notifyProgress(request, currentPhase, 'complete', '入力の分析が完了');
-
-    // 詳細分析のプロンプト生成
-    const detailPrompt = `
-      先ほどの分析結果を基に、より詳細な分析を行います。
-
-      初期分析結果：
-      ${JSON.stringify(initialAnalysis, null, 2)}
-
-      以下の観点から、より具体的な処理方法を提案してください：
-
-      1. 入力の意図と目的の明確化
-      2. 必要なリソースと依存関係の特定
-      3. 想定される処理ステップの詳細化
-      4. 潜在的な課題やエッジケースの検討
-      5. 最適な応答形式の決定
-
-      応答は必ず上記の初期分析と同じJSON形式で返してください。
-      各フィールドはより具体的な情報で更新してください。
-    `;
-
-    // 詳細分析の実行
-    const detailResult = await model.generateContent([{ text: detailPrompt }]);
-    const detailResponse = await detailResult.response;
-    const detailText = await detailResponse.text();
-
-    // 詳細分析結果の解析
-    const detailJson = extractJsonFromResponse(detailText);
-    const detailAnalysis = JSON.parse(detailJson);
-
-    // 初期分析と詳細分析を統合
-    const analysis = { ...initialAnalysis, ...detailAnalysis };
-
-    await notifyProgress(request, currentPhase, 'complete', '入力の分析が完了');
-
+    // 入力の分析
+    const analysis = await analyzeInput(model, request.text);
     // プロンプトの生成とコンテンツの生成
     currentPhase = 'api_call';
-    await notifyProgress(request, currentPhase, 'start', 'Gemini APIにリクエストを送信中');
+    console.log('Sending request to Gemini API...');
     const prompt = buildPrompt(request.text, analysis);
 
     const result = await model.generateContent([{ text: prompt }]);
@@ -214,14 +162,12 @@ export const processGeminiRequest = async (
       throw new Error('APIからの応答がありません');
     }
 
-    await notifyProgress(request, currentPhase, 'complete', 'Gemini APIからの応答を受信');
-
     const response = await result.response;
     const responseText = await response.text();
 
     let structuredOutput;
     currentPhase = 'response_parsing';
-    await notifyProgress(request, currentPhase, 'start', '応答を解析中');
+    console.log('Parsing response...');
 
     try {
       // レスポンステキストからJSONを抽出して解析
@@ -251,20 +197,16 @@ export const processGeminiRequest = async (
         structuredOutput.context = analysis.context;
       }
 
-      await notifyProgress(request, currentPhase, 'complete', '応答の解析が完了');
     } catch (parseError) {
-      await notifyProgress(request, currentPhase, 'error', '応答の解析に失敗');
       throw parseError;
     }
 
     // レスポンスの整形
     currentPhase = 'formatting';
-    await notifyProgress(request, currentPhase, 'start', 'レスポンスを整形中');
     const formattedResponse = formatResponse(analysis.mode, structuredOutput);
-    await notifyProgress(request, currentPhase, 'complete', 'レスポンスの整形が完了');
 
     currentPhase = 'completion';
-    await notifyProgress(request, currentPhase, 'complete', '処理が完了しました');
+    console.log('Processing completed');
 
     return {
       text: formattedResponse,
