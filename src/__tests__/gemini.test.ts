@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   initializeModel,
+  getModelInstance,
+  resetModel,
   analyzeInput,
   processGeminiRequest,
   formatResponse,
-  getSchemaForMode
-} from '../services/gemini';
-import type { AnalysisMode } from '../types';
+  getSchemaForMode,
+  type AnalysisMode
+} from '../services/gemini/index';
 
 // モックの設定
 vi.mock('@google/generative-ai', () => {
@@ -46,9 +48,10 @@ describe('Gemini Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetModel();
   });
 
-  describe('initializeModel', () => {
+  describe('モデル管理', () => {
     it('モデルを初期化する', () => {
       const model = initializeModel(API_KEY);
       expect(model).toBeDefined();
@@ -59,22 +62,23 @@ describe('Gemini Service', () => {
       const model2 = initializeModel(API_KEY);
       expect(model1).toBe(model2);
     });
+
+    it('初期化前にgetModelInstanceを呼ぶとエラーを投げる', () => {
+      expect(() => getModelInstance()).toThrow('モデルが初期化されていません');
+    });
   });
 
-  describe('analyzeInput', () => {
-    beforeEach(() => {
-      initializeModel(API_KEY);
-    });
-
+  describe('入力分析', () => {
     it('入力テキストを分析してモードと構造化スキーマを返す', async () => {
-      const result = await analyzeInput('テストテキスト');
+      const model = initializeModel(API_KEY);
+      const result = await analyzeInput(model, 'テストテキスト');
       expect(result).toHaveProperty('mode');
       expect(result).toHaveProperty('context');
       expect(result).toHaveProperty('structuredOutputSchema');
     });
   });
 
-  describe('processGeminiRequest', () => {
+  describe('リクエスト処理', () => {
     it('リクエストを処理して整形されたレスポンスを返す', async () => {
       const request = { text: 'テストリクエスト' };
       const response = await processGeminiRequest(request, API_KEY);
@@ -88,7 +92,7 @@ describe('Gemini Service', () => {
     });
   });
 
-  describe('formatResponse', () => {
+  describe('レスポンス整形', () => {
     it('generalモードのレスポンスを整形する', () => {
       const mode: AnalysisMode = 'general';
       const output = {
@@ -116,7 +120,7 @@ describe('Gemini Service', () => {
     });
   });
 
-  describe('getSchemaForMode', () => {
+  describe('スキーマ管理', () => {
     it('各モードに対して適切なスキーマを返す', () => {
       const modes: AnalysisMode[] = ['general', 'code', 'data', 'creative'];
       modes.forEach(mode => {

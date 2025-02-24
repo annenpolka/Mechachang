@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { processGeminiRequest } from './services/gemini';
+import { processGeminiRequest } from './services/gemini/index';
 import { verifySlackRequest, formatSlackResponse } from './utils/slack';
 import type { SlackSlashCommand, Env } from './types';
 
@@ -83,13 +83,17 @@ app.post('/slack/events', async (c) => {
         });
 
         if (!slackResponse.ok) {
-          throw new Error(`Slack API error: ${slackResponse.status}`);
+          const errorText = await slackResponse.text();
+          throw new Error(`Slack API error: ${slackResponse.status} - ${errorText}`);
         }
       });
 
       c.executionCtx.waitUntil(geminiPromise);
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error('Error processing message:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   }
 
@@ -141,14 +145,7 @@ app.post('/slack/command', async (c) => {
     const geminiPromise = processGeminiRequest(
       { text: formData.text },
       GEMINI_API_KEY
-    ).catch(error => {
-      console.error('Gemini API error:', {
-        message: error.message,
-        stack: error.stack,
-        details: error
-      });
-      throw error;
-    }).then(async (response) => {
+    ).then(async (response) => {
       // Slackに結果を送信
       console.log('Sending result to Slack');
       const formattedResponse = formatSlackResponse(response.text);
@@ -166,14 +163,22 @@ app.post('/slack/command', async (c) => {
 
       console.log('Slack response status:', slackResponse.status);
       if (!slackResponse.ok) {
-        throw new Error(`Slack API error: ${slackResponse.status} ${slackResponse.statusText}`);
+        const errorText = await slackResponse.text();
+        throw new Error(`Slack API error: ${slackResponse.status} - ${errorText}`);
       }
+    }).catch(error => {
+      console.error('Gemini API error:', {
+        message: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
     });
 
     // waitUntilを使用してバックグラウンド処理を確実に実行
     c.executionCtx.waitUntil(geminiPromise.catch(error => {
       console.error('Background processing error:', {
-        error: error instanceof Error ? error.message : error
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
       });
     }));
 
@@ -184,8 +189,10 @@ app.post('/slack/command', async (c) => {
     });
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? `${error.message}\n${error.stack}` : JSON.stringify(error);
-    console.error('Error:', errorMessage);
+    console.error('Error processing command:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined
+    });
 
     // エラーメッセージを送信
     console.log('Sending error message to Slack');
@@ -198,14 +205,22 @@ app.post('/slack/command', async (c) => {
         body: JSON.stringify({
           response_type: 'ephemeral',
           replace_original: true,
-          text: `エラーが発生しました: ${errorMessage}`
+          text: `エラーが発生しました: ${error instanceof Error ? error.message : error}`
         })
       });
       if (!slackResponse.ok) {
-        console.error('Failed to send error message to Slack:', slackResponse.status, slackResponse.statusText);
+        const errorText = await slackResponse.text();
+        console.error('Failed to send error message to Slack:', {
+          status: slackResponse.status,
+          statusText: slackResponse.statusText,
+          error: errorText
+        });
       }
     } catch (slackError) {
-      console.error('Failed to send error message to Slack:', slackError);
+      console.error('Failed to send error message to Slack:', {
+        error: slackError instanceof Error ? slackError.message : slackError,
+        stack: slackError instanceof Error ? slackError.stack : undefined
+      });
     }
     return c.json({ error: 'Internal Server Error' }, 500);
   }

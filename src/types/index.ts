@@ -31,38 +31,13 @@ export interface SlackBlock {
   }[];
 }
 
-// 入力分析システムの型定義
-export type AnalysisMode = 'general' | 'code' | 'data' | 'creative';
-
-export interface InputAnalysis {
-  mode: AnalysisMode;
-  context: {
-    type: string;
-    keywords: string[];
-    complexity: number;
-  };
-  structuredOutputSchema: {
-    type: string;
-    properties: Record<string, unknown>;
-    required: string[];
-  };
-}
-
-// Gemini API関連の型定義
-export interface GeminiRequest {
-  text: string;
-  mode?: AnalysisMode;
-  structuredOutputSchema?: {
-    type: string;
-    properties: Record<string, unknown>;
-    required: string[];
-  };
-}
-
-export interface GeminiResponse {
-  text: string;
-  structuredOutput?: Record<string, unknown>;
-}
+// Gemini関連の型定義のre-export
+export type {
+  AnalysisMode,
+  InputAnalysis,
+  GeminiRequest,
+  GeminiResponse
+} from '../services/gemini/types';
 
 // 環境変数の型定義
 export interface Env {
