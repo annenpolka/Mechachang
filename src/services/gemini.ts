@@ -59,7 +59,13 @@ export const analyzeInput = async (text: string): Promise<InputAnalysis> => {
     const response = await result.response;
     const responseText = await response.text();
     console.log('Raw analysis response:', responseText);
-    const analysisResult = JSON.parse(responseText);
+    let analysisResult;
+    try {
+      analysisResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse analysis response:', responseText);
+      throw new Error('APIからの応答を解析できませんでした');
+    }
 
     // スキーマの設定
     const structuredOutputSchema = getSchemaForMode(analysisResult.mode);
@@ -127,7 +133,7 @@ export const formatResponse = (mode: AnalysisMode, output: any): string => {
       return `${output.summary}\n\n主なポイント：\n${output.keyPoints.map((point: string) => `• ${point}`).join('\n')}`;
 
     case 'code':
-      return `説明：${output.explanation}\n\n\`\`\`${output.language}\n${output.code}\n\`\`\`\n\n提案：\n${output.suggestions?.map((s: string) => `• ${s}`).join('\n') || ''}`;
+      return `説明：${output.explanation}\n\n\`\`\`\n${output.code}\n\`\`\`\n\n提案：\n${output.suggestions?.map((s: string) => `• ${s}`).join('\n') || ''}`;
 
     case 'data':
       return `分析：${output.analysis}\n\n発見事項：\n${output.insights.map((i: string) => `• ${i}`).join('\n')}\n\n推奨事項：\n${output.recommendations?.map((r: string) => `• ${r}`).join('\n') || ''}`;
@@ -142,6 +148,10 @@ export const formatResponse = (mode: AnalysisMode, output: any): string => {
 
 export const processGeminiRequest = async (request: GeminiRequest, apiKey: string): Promise<GeminiResponse> => {
   try {
+    if (!apiKey) {
+      throw new Error('APIキーが指定されていません');
+    }
+
     initializeModel(apiKey);
     console.log('Model initialized with API key:', apiKey.substring(0, 8) + '...');
 
@@ -162,12 +172,21 @@ export const processGeminiRequest = async (request: GeminiRequest, apiKey: strin
     `;
 
     console.log('Sending prompt to Gemini API');
-    const result = await modelInstance!.generateContent([{ text: prompt }]);
+    if (!modelInstance) {
+      throw new Error('モデルが初期化されていません');
+    }
+    const result = await modelInstance.generateContent([{ text: prompt }]);
     console.log('Received response from Gemini API');
     const response = await result.response;
     const responseText = await response.text();
     console.log('Raw response:', responseText);
-    const structuredOutput = JSON.parse(responseText);
+    let structuredOutput;
+    try {
+      structuredOutput = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse response:', responseText);
+      throw new Error('APIからの応答を解析できませんでした');
+    }
 
     // レスポンスの整形
     const formattedResponse = formatResponse(analysis.mode, structuredOutput);
