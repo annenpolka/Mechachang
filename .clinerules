@@ -1,3 +1,4 @@
 # 技術スタック
 - TypeScript
+  - classを使用しないこと
 - Hono
