@@ -6,6 +6,10 @@ compatibility_date = "2024-02-24"
 [limits]
 cpu_ms = 60000
 
+# wrangler.toml (wrangler v3.88.0^)
+[observability.logs]
+enabled = true
+
 [vars]
 # 本番環境の環境変数はwrangler secretsで設定
 # SLACK_SIGNING_SECRET
