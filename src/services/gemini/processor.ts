@@ -104,7 +104,11 @@ const handleError = async (
 
 const notifyProgress = async (request: GeminiRequest, phase: ProcessingPhase, status: 'start' | 'complete' | 'error', details?: string) => {
   if (request.response_url) {
-    await sendSlackProcessingStatus(request.response_url, phase, status, details).catch(console.error);
+    try {
+      await sendSlackProcessingStatus(request.response_url, phase, status, details);
+    } catch (error) {
+      console.error('Failed to send progress notification:', error);
+    }
   }
 };
 
@@ -119,6 +123,9 @@ export const processGeminiRequest = async (
   apiKey: string
 ): Promise<GeminiResponse> => {
   let currentPhase: ProcessingPhase = 'initialization';
+
+    // メッセージ受信の通知
+    await notifyProgress(request, currentPhase, 'start', 'メッセージを受け取りました。AIが内容を理解して応答を生成するまで、30秒程度お待ちください...');
 
   try {
     // APIキーのバリデーション

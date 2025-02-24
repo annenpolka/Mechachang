@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { sendSlackProcessingStatus } from '../utils/slack';
 import {
   initializeModel,
   getModelInstance,
@@ -43,6 +44,12 @@ vi.mock('@google/generative-ai', () => {
   };
 });
 
+// Slackモックの設定
+vi.mock('../utils/slack', () => ({
+  sendSlackError: vi.fn(),
+  sendSlackProcessingStatus: vi.fn().mockResolvedValue(undefined)
+}));
+
 describe('Gemini Service', () => {
   const API_KEY = 'test_api_key';
 
@@ -79,6 +86,21 @@ describe('Gemini Service', () => {
   });
 
   describe('リクエスト処理', () => {
+    it('メッセージ受信時に待受時間の通知を送信する', async () => {
+      const request = {
+        text: 'テストリクエスト',
+        response_url: 'https://slack.com/api/response_url'
+      };
+      await processGeminiRequest(request, API_KEY);
+
+      expect(sendSlackProcessingStatus).toHaveBeenCalledWith(
+        request.response_url,
+        'initialization',
+        'start',
+        expect.stringContaining('メッセージを受け取りました')
+      );
+    });
+
     it('リクエストを処理して整形されたレスポンスを返す', async () => {
       const request = { text: 'テストリクエスト' };
       const response = await processGeminiRequest(request, API_KEY);
