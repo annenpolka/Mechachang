@@ -3,7 +3,9 @@ import type {
   GeminiResponse,
   InputAnalysis,
   ProcessingPhase,
-  ProcessingError
+  ProcessingError,
+  GenerativeModel,
+  GenerateContentResult
 } from './types';
 import { sendSlackError } from '../../utils/slack';
 import { initializeModel, getModelInstance } from './model';
@@ -139,6 +141,46 @@ const handleError = async (
 };
 
 /**
+ * APIリクエストを再試行可能な形で実行します
+ * @param model Geminiモデルインスタンス
+ * @param prompt プロンプト
+ * @param maxRetries 最大再試行回数
+ * @param baseDelay 基本待機時間（ミリ秒）
+ * @returns APIレスポンス
+ */
+const retryableGenerateContent = async (
+  model: GenerativeModel,
+  prompt: string,
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<GenerateContentResult> => {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await model.generateContent([{ text: prompt }]);
+      return result;
+    } catch (error) {
+      lastError = error as Error;
+
+      // キャンセルエラーまたはタイムアウトエラーの場合のみ再試行
+      if (
+        error instanceof Error &&
+        (error.message.includes('cancelled') || error.message.includes('timeout'))
+      ) {
+        if (attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt); // 指数バックオフ
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+};
+
+/**
  * Geminiリクエストを処理します
  * @param request リクエストオブジェクト
  * @param apiKey Google API Key
@@ -176,7 +218,7 @@ export const processGeminiRequest = async (
     console.log('Sending request to Gemini API...');
     const prompt = buildPrompt(request.text, analysis);
 
-    const result = await model.generateContent([{ text: prompt }]);
+    const result = await retryableGenerateContent(model, prompt);
     if (!result.response) {
       throw new Error('APIからの応答がありません');
     }
