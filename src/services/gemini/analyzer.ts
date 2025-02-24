@@ -25,6 +25,21 @@ const getAnalysisPrompt = (text: string): string => {
 };
 
 /**
+ * レスポンステキストからJSONを抽出します
+ * @param text レスポンステキスト
+ * @returns 抽出されたJSON文字列
+ */
+const extractJsonFromResponse = (text: string): string => {
+  // コードブロックを除去
+  const jsonMatch = text.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+  if (jsonMatch) {
+    return jsonMatch[1];
+  }
+  // コードブロックがない場合は元のテキストを返す
+  return text;
+};
+
+/**
  * 入力テキストを分析し、適切な処理モードと文脈情報を決定します
  * @param model 初期化済みのGenerativeModelインスタンス
  * @param text 分析対象のテキスト
@@ -47,7 +62,14 @@ export const analyzeInput = async (
 
     let analysisResult;
     try {
-      analysisResult = JSON.parse(responseText);
+      // レスポンステキストからJSONを抽出して解析
+      const jsonText = extractJsonFromResponse(responseText);
+      // カンマの欠落を修正
+      const fixedJsonText = jsonText
+        .replace(/}\s*"/, '},\n"')  // オブジェクトの終わりと次のキーの間
+        .replace(/"\s*"/, '",\n"')  // 文字列と次のキーの間
+        .replace(/]\s*"/, '],\n"'); // 配列の終わりと次のキーの間
+      analysisResult = JSON.parse(fixedJsonText);
     } catch (parseError) {
       console.error('Failed to parse analysis response:', responseText);
       throw new Error('APIからの応答を解析できませんでした');

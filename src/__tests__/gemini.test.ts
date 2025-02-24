@@ -88,7 +88,11 @@ describe('Gemini Service', () => {
 
     it('APIキーが無効な場合にエラーを投げる', async () => {
       const request = { text: 'テストリクエスト' };
-      await expect(processGeminiRequest(request, '')).rejects.toThrow();
+      const response = await processGeminiRequest(request, '');
+      expect(response.error).toBeDefined();
+      expect(response.error?.message).toBe('APIキーが指定されていません');
+      expect(response.error?.phase).toBe('initialization');
+      expect(response.text).toContain('エラーが発生しました');
     });
   });
 

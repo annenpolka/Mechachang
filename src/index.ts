@@ -64,13 +64,18 @@ app.post('/slack/events', async (c) => {
     const { GEMINI_API_KEY } = c.env;
 
     try {
-      const geminiPromise = processGeminiRequest(
-        { text: body.event.text },
+      const response = await processGeminiRequest(
+        {
+          text: body.event.text,
+          response_url: `https://slack.com/api/chat.postMessage`,
+        },
         GEMINI_API_KEY
-      ).then(async (response) => {
-        // Slackにメッセージを送信
+      );
+
+      // エラーがない場合のみ最終的な応答を送信
+      if (!response.error) {
         const formattedResponse = formatSlackResponse(response.text);
-        const slackResponse = await fetch('https://slack.com/api/chat.postMessage', {
+        await fetch('https://slack.com/api/chat.postMessage', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -81,19 +86,9 @@ app.post('/slack/events', async (c) => {
             text: formattedResponse
           })
         });
-
-        if (!slackResponse.ok) {
-          const errorText = await slackResponse.text();
-          throw new Error(`Slack API error: ${slackResponse.status} - ${errorText}`);
-        }
-      });
-
-      c.executionCtx.waitUntil(geminiPromise);
+      }
     } catch (error) {
-      console.error('Error processing message:', {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      console.error('Error in events endpoint:', error);
     }
   }
 
@@ -142,14 +137,18 @@ app.post('/slack/command', async (c) => {
     // 即時応答を返す
     console.log('Sending immediate response');
 
-    const geminiPromise = processGeminiRequest(
-      { text: formData.text },
+    const response = await processGeminiRequest(
+      {
+        text: formData.text,
+        response_url: formData.response_url
+      },
       GEMINI_API_KEY
-    ).then(async (response) => {
-      // Slackに結果を送信
-      console.log('Sending result to Slack');
+    );
+
+    // エラーがない場合のみ最終的な応答を送信
+    if (!response.error) {
       const formattedResponse = formatSlackResponse(response.text);
-      const slackResponse = await fetch(formData.response_url, {
+      await fetch(formData.response_url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -160,70 +159,13 @@ app.post('/slack/command', async (c) => {
           text: formattedResponse
         })
       });
-
-      console.log('Slack response status:', slackResponse.status);
-      if (!slackResponse.ok) {
-        const errorText = await slackResponse.text();
-        throw new Error(`Slack API error: ${slackResponse.status} - ${errorText}`);
-      }
-    }).catch(error => {
-      console.error('Gemini API error:', {
-        message: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      throw error;
-    });
-
-    // waitUntilを使用してバックグラウンド処理を確実に実行
-    c.executionCtx.waitUntil(geminiPromise.catch(error => {
-      console.error('Background processing error:', {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    }));
-
-    // 即時レスポンスを返す
-    return c.json({
-      response_type: 'in_channel',
-      text: '処理中です...'
-    });
+    }
 
   } catch (error) {
-    console.error('Error processing command:', {
-      error: error instanceof Error ? error.message : error,
-      stack: error instanceof Error ? error.stack : undefined
-    });
-
-    // エラーメッセージを送信
-    console.log('Sending error message to Slack');
-    try {
-      const slackResponse = await fetch(formData.response_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          response_type: 'ephemeral',
-          replace_original: true,
-          text: `エラーが発生しました: ${error instanceof Error ? error.message : error}`
-        })
-      });
-      if (!slackResponse.ok) {
-        const errorText = await slackResponse.text();
-        console.error('Failed to send error message to Slack:', {
-          status: slackResponse.status,
-          statusText: slackResponse.statusText,
-          error: errorText
-        });
-      }
-    } catch (slackError) {
-      console.error('Failed to send error message to Slack:', {
-        error: slackError instanceof Error ? slackError.message : slackError,
-        stack: slackError instanceof Error ? slackError.stack : undefined
-      });
-    }
-    return c.json({ error: 'Internal Server Error' }, 500);
+    console.error('Error in command endpoint:', error);
+    return c.json({ error: 'エラーが発生しました' }, 500);
   }
+  return c.json({ message: '処理を開始しました' });
 });
 
 export default app;

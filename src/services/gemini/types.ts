@@ -26,10 +26,27 @@ export interface InputAnalysis {
   };
 }
 
+// 処理フェーズの定義
+export type ProcessingPhase =
+  | 'initialization'
+  | 'input_analysis'
+  | 'api_call'
+  | 'response_parsing'
+  | 'formatting'
+  | 'completion';
+
+// エラー情報
+export interface ProcessingError {
+  phase: ProcessingPhase;
+  message: string;
+  details?: unknown;
+}
+
 // Geminiリクエスト
 export interface GeminiRequest {
   text: string;
   mode?: AnalysisMode;
+  response_url?: string; // Slack通知用のURL
   structuredOutputSchema?: {
     type: string;
     properties: Record<string, unknown>;
@@ -41,6 +58,8 @@ export interface GeminiRequest {
 export interface GeminiResponse {
   text: string;
   structuredOutput?: Record<string, unknown>;
+  error?: ProcessingError;
+  processingPhase?: ProcessingPhase;
 }
 
 // Generative AIの型の再エクスポート
